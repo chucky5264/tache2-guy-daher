@@ -289,6 +289,11 @@ Conformément à la politique de l'Université de Montréal sur l'IA générativ
 nous déclarons avoir utilisé l'assistant Claude (Claude Code, Anthropic)
 comme outil d'appui, selon les modalités suivantes.
 
+### Partie 1 - ChatUniTest
+- Trouver la bonne version de mockito causant des problèmes de compilation des tests générés
+- Reformuler certains passages du README.md
+- Trouver le bon plugin de chatUniTest adapté à nos machines
+
 ### Partie 2 — Analyse de mutation et tests manuels
 
 Claude a été consulté pour :
