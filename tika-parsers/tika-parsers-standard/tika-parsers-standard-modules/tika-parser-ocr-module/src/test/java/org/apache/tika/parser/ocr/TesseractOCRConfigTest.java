@@ -16,18 +16,23 @@
  */
 package org.apache.tika.parser.ocr;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import org.apache.tika.TikaTest;
 import org.apache.tika.config.loader.TikaLoader;
+import org.apache.tika.exception.TikaConfigException;
 import org.apache.tika.parser.CompositeParser;
 
 public class TesseractOCRConfigTest extends TikaTest {
@@ -245,5 +250,180 @@ public class TesseractOCRConfigTest extends TikaTest {
         assertThrows(IllegalArgumentException.class, () -> {
             config.setColorspace("someth!ng");
         });
+    }
+
+    // Tests ajoutés pour couvrir les mutants pitest qui survivaient encore.
+
+    // Les bornes 150 et 1200 n'étaient pas testées précisément: un mutant
+    // changeant "<" en "<=" passait inaperçu.
+    @Test
+    public void testValidateDensityBoundaries() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        config.setDensity(150);
+        assertEquals(150, config.getDensity(), "Lower boundary density value should be accepted");
+        config.setDensity(1200);
+        assertEquals(1200, config.getDensity(), "Upper boundary density value should be accepted");
+        assertThrows(IllegalArgumentException.class, () -> config.setDensity(149),
+                "Value just below the lower boundary must be rejected");
+        assertThrows(IllegalArgumentException.class, () -> config.setDensity(1201),
+                "Value just above the upper boundary must be rejected");
+    }
+
+    // Aucun test n'appelait setColorspace(null); le contrôle de nullité
+    // aurait pu être inversé sans rien casser.
+    @Test
+    public void testColorspaceNullThrows() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertThrows(IllegalArgumentException.class, () -> config.setColorspace(null));
+    }
+
+    // Le retour de getOutputType() n'était jamais vérifié après un appel
+    // à setOutputType("txt"/"hocr").
+    @Test
+    public void testOutputTypeStringRoundTrip() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertEquals(TesseractOCRConfig.OUTPUT_TYPE.TXT, config.getOutputType(),
+                "Default output type should be TXT");
+        config.setOutputType("hocr");
+        assertEquals(TesseractOCRConfig.OUTPUT_TYPE.HOCR, config.getOutputType(),
+                "Output type should be updated to HOCR");
+        config.setOutputType("txt");
+        assertEquals(TesseractOCRConfig.OUTPUT_TYPE.TXT, config.getOutputType(),
+                "Output type should be updated back to TXT");
+    }
+
+    // Le setter est appelé ailleurs dans la suite, mais isEnableImagePreprocessing()
+    // n'était jamais relu après coup.
+    @Test
+    public void testEnableImagePreprocessingRoundTrip() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertFalse(config.isEnableImagePreprocessing(), "Default should be disabled");
+        config.setEnableImagePreprocessing(true);
+        assertTrue(config.isEnableImagePreprocessing(), "Should reflect value set to true");
+    }
+
+    // Même situation pour isPreloadLangs().
+    @Test
+    public void testPreloadLangsRoundTrip() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertFalse(config.isPreloadLangs(), "Default should be disabled");
+        config.setPreloadLangs(true);
+        assertTrue(config.isPreloadLangs(), "Should reflect value set to true");
+    }
+
+    // getTesseractPath/getImageMagickPath/getTessdataPath n'étaient testés
+    // qu'avec un chemin invalide (caractère de contrôle). Avec un chemin
+    // correct, le setter doit ajouter le séparateur final s'il manque;
+    // ça n'avait jamais été vérifié.
+    @Test
+    public void testTesseractPathRoundTrip() throws Exception {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        config.setTesseractPath("tesseract-bin");
+        assertEquals("tesseract-bin" + File.separator, config.getTesseractPath(),
+                "Path should be normalized with a trailing separator");
+    }
+
+    @Test
+    public void testImageMagickPathRoundTrip() throws Exception {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        config.setImageMagickPath("imagemagick-bin");
+        assertEquals("imagemagick-bin" + File.separator, config.getImageMagickPath(),
+                "Path should be normalized with a trailing separator");
+    }
+
+    @Test
+    public void testTessdataPathRoundTrip() throws Exception {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        config.setTessdataPath("tessdata-dir");
+        assertEquals("tessdata-dir" + File.separator, config.getTessdataPath(),
+                "Path should be normalized with a trailing separator");
+    }
+
+    // setOtherTesseractConfig(Map) et getOtherTesseractConfig() n'étaient
+    // jamais appelés directement; seule la variante clé/valeur
+    // (addOtherTesseractConfig) était couverte.
+    @Test
+    public void testSetOtherTesseractConfigMap() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        config.setOtherTesseractConfig(Map.of("good", "good"));
+        assertEquals("good", config.getOtherTesseractConfig().get("good"),
+                "Map entries passed to setOtherTesseractConfig should be applied");
+    }
+
+    // Aucun test n'existait pour isInlineContent/setInlineContent.
+    @Test
+    public void testInlineContentRoundTrip() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertFalse(config.isInlineContent(), "Default should be disabled");
+        config.setInlineContent(true);
+        assertTrue(config.isInlineContent(), "Should reflect value set to true");
+    }
+
+    // RuntimeConfig était à 0% de couverture avant ces tests (voir JaCoCo).
+    // Elle verrouille les chemins tesseract/tessdata/imageMagick une fois
+    // le parseur initialisé, pour empêcher qu'une config lue à l'exécution
+    // les modifie.
+    @Test
+    public void testRuntimeConfigRejectsPathChanges() {
+        TesseractOCRConfig.RuntimeConfig runtimeConfig = new TesseractOCRConfig.RuntimeConfig();
+        assertThrows(TikaConfigException.class, () -> runtimeConfig.setTesseractPath("/some/path"),
+                "RuntimeConfig must reject changing tesseractPath at runtime");
+        assertThrows(TikaConfigException.class, () -> runtimeConfig.setTessdataPath("/some/path"),
+                "RuntimeConfig must reject changing tessdataPath at runtime");
+        assertThrows(TikaConfigException.class, () -> runtimeConfig.setImageMagickPath("/some/path"),
+                "RuntimeConfig must reject changing imageMagickPath at runtime");
+    }
+
+    // Une valeur vide ou nulle doit en revanche passer sans problème
+    // (branche StringUtils.isBlank), sinon on bloquerait aussi les configs
+    // qui ne touchent pas aux chemins.
+    @Test
+    public void testRuntimeConfigAllowsBlankPaths() {
+        TesseractOCRConfig.RuntimeConfig runtimeConfig = new TesseractOCRConfig.RuntimeConfig();
+        assertDoesNotThrow(() -> runtimeConfig.setTesseractPath(""));
+        assertDoesNotThrow(() -> runtimeConfig.setTessdataPath(null));
+        assertDoesNotThrow(() -> runtimeConfig.setImageMagickPath(""));
+    }
+
+    // Trois cas de setPageSeparator n'étaient jamais couverts ensemble:
+    // entrée vide (no-op), séparateur valide ("end-of-page", conforme à
+    // ALLOWABLE_PAGE_SEPARATORS_PATTERN) et séparateur contenant un
+    // caractère interdit comme "<".
+    @Test
+    public void testPageSeparatorRoundTrip() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertEquals("", config.getPageSeparator(), "Default page separator should be empty");
+        config.setPageSeparator("");
+        assertEquals("", config.getPageSeparator(), "Blank input should be a no-op");
+        config.setPageSeparator("end-of-page");
+        assertEquals("end-of-page", config.getPageSeparator(), "Valid separator should be applied");
+        assertThrows(IllegalArgumentException.class, () -> config.setPageSeparator("<script>"),
+                "Separator with illegal characters must be rejected");
+    }
+
+    // isPreserveInterwordSpacing() et isSkipOcr() (test suivant) n'avaient
+    // jamais été relus après leur setter respectif.
+    @Test
+    public void testPreserveInterwordSpacingRoundTrip() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertFalse(config.isPreserveInterwordSpacing(), "Default should be disabled");
+        config.setPreserveInterwordSpacing(true);
+        assertTrue(config.isPreserveInterwordSpacing(), "Should reflect value set to true");
+    }
+
+    @Test
+    public void testSkipOcrRoundTrip() {
+        TesseractOCRConfig config = new TesseractOCRConfig();
+        assertFalse(config.isSkipOcr(), "Default should be disabled");
+        config.setSkipOcr(true);
+        assertTrue(config.isSkipOcr(), "Should reflect value set to true");
+    }
+
+    // setTrustedPageSeparator n'était exercé par aucun test existant.
+    @Test
+    public void testRuntimeConfigRejectsTrustedPageSeparator() {
+        TesseractOCRConfig.RuntimeConfig runtimeConfig = new TesseractOCRConfig.RuntimeConfig();
+        assertThrows(IllegalArgumentException.class,
+                () -> runtimeConfig.setTrustedPageSeparator("|"));
     }
 }

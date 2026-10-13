@@ -1,250 +1,307 @@
-Welcome to Apache Tika  <https://tika.apache.org/>
-=================================================
+# IFT3913 — Tâche 2 : augmentation d'une suite de tests automatique
 
-[![license](https://img.shields.io/github/license/apache/tika.svg?maxAge=2592000)](http://www.apache.org/licenses/LICENSE-2.0)
-[![Jenkins](https://img.shields.io/jenkins/s/https/ci-builds.apache.org/job/Tika/job/tika-main-jdk17.svg?maxAge=3600)](https://ci-builds.apache.org/job/Tika/job/tika-main-jdk17/)
-[![Jenkins tests](https://img.shields.io/jenkins/t/https/ci-builds.apache.org/job/Tika/job/tika-main-jdk17.svg?maxAge=3600)](https://ci-builds.apache.org/job/Tika/job/tika-main-jdk17/lastBuild/testReport/)
-[![Maven Central](https://img.shields.io/maven-central/v/org.apache.tika/tika.svg?maxAge=86400)](http://search.maven.org/#search|ga|1|g%3A%22org.apache.tika%22)
+| Nom complet | Identifiant GitHub |
+|---|---|
+| Guy Simon | chucky5264 |
+| Poliquin Daher Étienne | Mad-Barry |
 
-Apache Tika(TM) is a toolkit for detecting and extracting metadata and structured text content from various documents using existing parser libraries.
+- Lien vers le répertoire GitHub : https://github.com/chucky5264/tache2-guy-daher
+- Lien vers ce README : https://github.com/chucky5264/tache2-guy-daher/blob/main/README.md
 
-Tika is a project of the [Apache Software Foundation](https://www.apache.org).
+Ce dépôt est un sous-ensemble réduit du [cas d'étude Tika](https://github.com/umontreal-diro/tika),
+limité aux modules nécessaires pour construire et tester la classe choisie
+(`tika-core`, `tika-annotation-processor`, `tika-serialization`,
+`tika-parser-xmp-commons`, `tika-parser-image-module`, `tika-parser-ocr-module`).
 
-Apache Tika, Tika, Apache, the Apache feather logo, and the Apache Tika project logo are trademarks of The Apache Software Foundation.
+## Classe sélectionnée et justification
 
-Quick Start
-===========
+Module : `tika-parser-ocr-module`
+Classe : `org.apache.tika.parser.ocr.TesseractOCRConfig` (et sa classe imbriquée
+`TesseractOCRConfig.RuntimeConfig`)
 
-**Parse a file in Java:**
+`TesseractOCRConfig` possède déjà une suite de tests (`TesseractOCRConfigTest`,
+~20 tests), mais une analyse JaCoCo avant toute modification montre qu'elle
+n'est pas couverte à 100% :
 
-```java
-import org.apache.tika.Tika;
+| Métrique | Avant | Couvert / Total |
+|---|---|---|
+| Instructions | 77% | 511 / 660 |
+| Branches | 60% | 41 / 68 |
+| Lignes | 72% | 124 / 171 |
+| Méthodes | 72% | 36 / 50 |
 
-Tika tika = new Tika();
-String text = tika.parseToString(new File("document.pdf"));
-System.out.println(text);
-```
+La classe imbriquée `TesseractOCRConfig.RuntimeConfig` était à **0% de
+couverture** (0/35 instructions, 0/5 méthodes) — aucune ligne de cette classe
+n'était exercée par un test. La classe principale contient par ailleurs de
+nombreuses méthodes de validation (regex, bornes numériques, listes de
+valeurs autorisées) qui en font un bon candidat pour l'analyse de mutation.
 
-**From the command line:**
+---
 
-```bash
-java -jar tika-app-*.jar --text document.pdf
-```
+## Partie 1 — Génération de tests par IA (ChatUniTest)
 
-**Maven dependency:**
+### Configuration
 
-```xml
-<dependency>
-    <groupId>org.apache.tika</groupId>
-    <artifactId>tika-parsers-standard-package</artifactId>
-    <version>4.x.y</version>
-    <type>pom</type>
-</dependency>
-```
-
-Getting Started
-===============
-Pre-built binaries of Apache Tika standalone applications are available
-from https://tika.apache.org/download.html . Pre-built binaries of all the
-Tika jars can be fetched from Maven Central or your favourite Maven mirror.
-
-**Tika 2.X and support for Java 8 reached End of Life (EOL) in April, 2025. 
-See [Tika Roadmap 2.x, 3.x and beyond](https://cwiki.apache.org/confluence/display/TIKA/Tika+Roadmap+--+2.x%2C+3.x+and+Beyond).** 
-
-Tika is based on **Java 17** and uses the [Maven 3](https://maven.apache.org) build system.
-**N.B.** [Docker](https://www.docker.com/products/personal) is used for tests in tika-integration-tests. If Docker is not installed, those tests are skipped.
-
-To build Tika from source, use the following command in the main directory:
-
-    ./mvnw clean install
-
-The Maven wrapper (`mvnw`) is included in the repository and will automatically download
-the correct Maven version if needed. On Windows, use `mvnw.cmd` instead.
-
-The build consists of a number of components, including a standalone runnable jar that you can use to try out Tika features. You can run it like this:
-
-    java -jar tika-app/target/tika-app-*.jar --help
-
-
-To build a specific project (for example, tika-server-standard):
-
-    ./mvnw clean install -am -pl :tika-server-standard
-
-If the ossindex-maven-plugin is causing the build to fail because a dependency
-has now been discovered to have a vulnerability:
-
-    ./mvnw clean install -Dossindex.skip
-
-
-Faster Builds
-=============
-
-**Fast profile** - Use `-Pfast` to skip tests, checkstyle, and spotless:
-
-    ./mvnw clean install -Pfast
-
-**Parallel builds** - Add `-T1C` to build with 1 thread per CPU core:
-
-    ./mvnw clean install -Pfast -T1C
-
-**Maven Daemon (mvnd)** - Keeps a warm JVM running for 2-3x faster rebuilds:
-
-```bash
-# Install: https://github.com/apache/maven-mvnd
-# macOS: brew install mvndaemon/tap/mvnd
-
-# Use exactly like mvn
-mvnd clean install -Pfast
-mvnd test -pl :tika-core
-```
-
-**Combine both** for maximum speed during development:
-
-    mvnd clean install -Pfast -T1C
-
-
-Reproducible Builds
-===================
-
-Apache Tika supports [reproducible builds](https://reproducible-builds.org/). This means
-that building the same source code with the same JDK version should produce
-byte-for-byte identical artifacts, regardless of the build machine or time.
-
-Key configuration:
-- `project.build.outputTimestamp` is set in `tika-parent/pom.xml`
-- All Maven plugins are configured to produce deterministic output
-
-To verify the build plan supports reproducibility:
-
-    ./mvnw artifact:check-buildplan
-
-To verify two builds produce identical artifacts:
-
-    ./mvnw clean install -DskipTests
-    mv ~/.m2/repository/org/apache/tika tika-build-1
-    ./mvnw clean install -DskipTests
-    diff -r tika-build-1 ~/.m2/repository/org/apache/tika
-
-
-Maven Dependencies
-==================
-
-Apache Tika provides *Bill of Material* (BOM) artifact to align Tika module versions and simplify version management. 
-To avoid convergence errors in your own project, import this
-bom or Tika's parent pom.xml in your dependency management section.
-
-If you use Apache Maven:
+[ChatUniTest](https://github.com/ZJU-ACES-ISE/ChatUniTest) (plugin Maven `chatunitest-maven-plugin` 2.1.1) a été configuré sur `tika-parser-ocr-module`, pointé vers un modèle local servi par [Ollama](https://ollama.com) (`qwen2.5-coder:1.5b`, exposé sous le nom `code-llama` via l'API compatible OpenAI d'Ollama, `http://localhost:11434/v1/chat/completions`) :
 
 ```xml
-<project>
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-       <groupId>org.apache.tika</groupId>
-       <artifactId>tika-bom</artifactId>
-       <version>4.x.y</version>
-       <type>pom</type>
-       <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
-
-  <dependencies>
-    <dependency>
-      <groupId>org.apache.tika</groupId>
-      <artifactId>tika-parsers-standard-package</artifactId>
-      <type>pom</type>
-      <!-- version not required since BOM included -->
-    </dependency>
-  </dependencies>
-</project>
+<plugin>
+  <groupId>io.github.zju-aces-ise</groupId>
+  <artifactId>chatunitest-maven-plugin</artifactId>
+  <version>2.1.1</version>
+  <configuration>
+    <apiKeys>ollama-local</apiKeys>
+    <model>code-llama</model>
+    <url>http://localhost:11434/v1/chat/completions</url>
+    <testNumber>2</testNumber>
+    <maxRounds>2</maxRounds>
+  </configuration>
+</plugin>
 ```
 
-For Gradle:
-
-```kotlin
-dependencies {
-  implementation(platform("org.apache.tika:tika-bom:4.x.y"))
-
-  // version not required since bom (platform in Gradle terms)
-  implementation("org.apache.tika:tika-parsers-standard-package@pom")
-}
+```bash
+cd tika-parsers/tika-parsers-standard/tika-parsers-standard-modules/tika-parser-ocr-module
+mvn chatunitest:class -DselectClass=org.apache.tika.parser.ocr.TesseractOCRConfig
 ```
 
-Migrating to 4.x
-================
-TBD
+`testNumber` et `maxRounds` ont été réduits de 5 à 2 par rapport aux valeurs par défaut : avec un modèle local de 1,5 milliard de paramètres sur CPU, chaque appel prend plusieurs dizaines de secondes, et un modèle de cette taille ne gagne pas vraiment en qualité en multipliant les tentatives (voir ci-dessous).
 
-Contributing
-============
-See [CONTRIBUTING.md](CONTRIBUTING.md) and https://tika.apache.org/contribute.html
+### Sélection des méthodes : ChatUniTest filtre lui-même
 
-[![contributors](https://contributors-img.web.app/image?repo=apache/tika)](https://github.com/apache/tika/graphs/contributors)
-
-Building from a Specific Tag
-============================
-Let's assume that you want to build the 3.0.1 tag:
-```
-0. Download and install hub.github.com
-1. git clone https://github.com/apache/tika.git
-2. cd tika
-3. git checkout 3.0.1
-4. ./mvnw clean install
-```
-
-If a new vulnerability has been discovered between the date of the
-tag and the date you are building the tag, you may need to build with:
+`TesseractOCRConfig` expose 48 méthodes publiques. ChatUniTest n'a pourtant tenté d'en tester que **2** : `getLangs(String, Set, Set)` et `addOtherTesseractConfig(String, String)`. Ce n'est pas un choix que nous avons fait — c'est le comportement par défaut de l'outil : la classe `Counter` de `chatunitest-core` (méthode `filter(MethodInfo)`) exclut automatiquement les constructeurs, les accesseurs (getters/setters) et les méthodes booléennes (`isXxx`) de la génération. Dans les logs :
 
 ```
-4. ./mvnw clean install -Dossindex.skip
+Skip method: getPageSegMode() in class: org.apache.tika.parser.ocr.TesseractOCRConfig
+Skip method: isPreserveInterwordSpacing() in class: org.apache.tika.parser.ocr.TesseractOCRConfig
+Skip method: setDensity(int) in class: org.apache.tika.parser.ocr.TesseractOCRConfig
+...
+Processed getLangs(String, Set, Set)
+Processed addOtherTesseractConfig(String, String)
 ```
 
-If a local test is not working in your environment, please notify
- the project at dev@tika.apache.org. As an immediate workaround,
- you can turn off individual tests with e.g.:
+C'est un point de comparaison important pour la Partie 3 : les 46 méthodes écartées par ChatUniTest sont précisément le type de méthodes (accesseurs, booléens) où nos tests manuels de la Partie 2 ont trouvé le plus de mutants survivants.
+
+### Les tests générés compilent-ils sans intervention manuelle ? Non — une correction a été nécessaire
+
+**Première exécution : 0/2 méthodes ont produit un test qui compile.** Le gabarit de test de ChatUniTest ajoute systématiquement `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@Spy`, que la classe sous test en ait besoin ou non. Or `tika-parser-ocr-module/pom.xml` ne déclarait aucune dépendance Mockito (seul `tika-parent` gère la version `mockito.version` dans son `dependencyManagement`, sans qu'aucun module ne la déclenche). Erreur typique, inchangée après les 2 tours de réparation automatique :
 
 ```
-4. ./mvnw clean install -Dossindex.skip -Dtest=\!UnpackerResourceTest#testPDFImages
+Error in TesseractOCRConfig_getLangs_0_1_Test: line 6 : package org.mockito.junit.jupiter does not exist
+Error in TesseractOCRConfig_getLangs_0_1_Test: line 25 : cannot find symbol
+  symbol: class MockitoExtension
 ```
 
-License (see also LICENSE.txt)
-==============================
+C'est une limite structurelle du mécanisme « Generation-Validation-Repair » : il corrige le *code* du test à partir des messages d'erreur, mais ne peut pas modifier le `pom.xml`. **Correction manuelle apportée** : ajout de `mockito-core` et `mockito-junit-jupiter` comme dépendances `test` dans `tika-parser-ocr-module/pom.xml`.
 
-Collective work: Copyright 2011 The Apache Software Foundation.
+**Deuxième exécution, après correction :**
 
-Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.  See the NOTICE file distributed with this work for additional information regarding copyright ownership.  The ASF licenses this file to You under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License.  You may obtain a copy of the License at
+| Méthode | Tentatives (testNumber × maxRounds) | Résultat |
+|---|---|---|
+| `addOtherTesseractConfig(String, String)` | 2 variantes × 2 tours | Variante 0 : échec de compilation (2 tours épuisés). Variante 1 : **compile** et s'exécute → fusionnée dans `chatunitest-tests/.../TesseractOCRConfig_Suite.java` |
+| `getLangs(String, Set, Set)` | 2 variantes × 2 tours | Échec de compilation sur les 2 variantes, malgré Mockito corrigé |
 
-<https://www.apache.org/licenses/LICENSE-2.0>
+Pour `getLangs`, la cause n'est plus une dépendance manquante mais une **hallucination d'API** : le modèle génère des appels à `tesseractOCRConfig.getTrustedPageSeparator()` et `tesseractOCRConfig.getPreserveInterwordSpacing()`, qui n'existent pas (le vrai getter est `isPreserveInterwordSpacing()`, et `setTrustedPageSeparator` n'a pas de getter du tout). Il génère aussi, sans qu'on le lui demande, des tests pour des méthodes totalement différentes (`testGetMaxFileSizeToOcr`, `testGetTimeoutSeconds`) qui n'exercent jamais `getLangs`. Les 2 tours de réparation automatique n'ont pas suffi : corriger un nom de méthode inventé demande de comprendre l'API réelle, pas seulement de relire un message du compilateur.
 
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the License for the specific language governing permissions and limitations under the License.
+**Bilan** : 1 correction manuelle (dépendance) a été nécessaire avant que quoi que ce soit compile ; après cette correction, 1 méthode sur 2 a produit un test exécutable sans autre intervention (`addOtherTesseractConfig`), l'autre (`getLangs`) n'a jamais abouti malgré 4 tentatives de génération au total.
 
-Apache Tika includes a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the licenses listed in the LICENSE.txt file.
+Les tests générés se trouvent dans `tika-parsers/tika-parsers-standard/tika-parsers-standard-modules/tika-parser-ocr-module/chatunitest-tests/org/apache/tika/parser/ocr/` (emplacement par défaut du plugin, non fusionné avec `src/test/java` pour ne pas mélanger la suite générée et la suite manuelle de la Partie 2).
 
-Export Control
-==============
+Enfin, le fichier généré ne respecte pas le style du projet : en l'exécutant avec checkstyle activé, 16 violations sont rapportées (imports inutilisés — `Logger`, `Pattern`, `FilenameUtils`, `TikaConfigException`... — et un champ `serialVersionUID` ajouté sur une classe de test qui n'implémente pas `Serializable`).
 
-This distribution includes cryptographic software.  The country in which you currently reside may have restrictions on the import, possession, use, and/or re-export to another country, of encryption software.  BEFORE using any encryption software, please  check your country's laws, regulations and policies concerning the import, possession, or use, and re-export of encryption software, to  see if this is permitted.  See <http://www.wassenaar.org/> for more information.
+### Deuxième essai : un modèle local plus gros, sans le filtre de méthodes
 
-The U.S. Government Department of Commerce, Bureau of Industry and Security (BIS), has classified this software as Export Commodity Control Number (ECCN) 5D002.C.1, which includes information security software using or performing cryptographic functions with asymmetric algorithms.  The form and manner of this Apache Software Foundation distribution makes it eligible for export under the License Exception ENC Technology Software Unrestricted (TSU) exception (see the BIS Export Administration Regulations, Section 740.13) for both object code and source code.
+En parallèle, une deuxième configuration a été testée avec un modèle local plus gros, construit avec Ollama à partir d'un `Modelfile` :
 
-The following provides more details on the included cryptographic software:
+```
+FROM qwen2.5-coder:3b
+PARAMETER num_ctx 8192
+```
 
-Apache Tika uses the Bouncy Castle generic encryption libraries for extracting text content and metadata from encrypted PDF files.  See <http://www.bouncycastle.org/> for more details on Bouncy Castle.  
+(`codeqwen:v1.5-chat`, 3 milliards de paramètres contre 1,5 pour `code-llama` ci-dessus, avec une fenêtre de contexte doublée à 8192 tokens). Avec cette configuration, ChatUniTest a produit des tests compilables pour **12 méthodes supplémentaires** de `TesseractOCRConfig`, dont plusieurs accesseurs/booléens (`getColorspace`, `setColorspace`, `getDepth`, `isSkipOcr`, `isPreserveInterwordSpacing`, `setFilter`, `setPageSeparator`, `setTrustedPageSeparator`, `getPageSeparator`, `setMaxFileSizeToOcr`, `setOtherTesseractConfig`) ainsi qu'une seconde variante de `addOtherTesseractConfig`. Fait notable : plusieurs de ces méthodes (`getColorspace`, `isSkipOcr`, `setColorspace`...) sont précisément le type d'accesseur/booléen que le filtre `Counter.filter` de `chatunitest-core` exclut d'ordinaire (voir plus haut). Nous n'avons pas pu confirmer avec certitude pourquoi ce filtre ne s'est pas appliqué ici de la même façon — une piste, visible dans le bytecode de `ClassRunner.start()`, est que l'exécution multithread du plugin (`thread=true`, valeur par défaut) emprunte un chemin de code (`methodJob()`) distinct de la boucle filtrée que nous avions observée ; cela reste une hypothèse non vérifiée, pas une conclusion établie.
 
-Mailing Lists
-=============
+Les 12 fichiers compilent tous. En les exécutant (`mvn test -Dtest=...`) : 64 tests au total, **45 passent, 18 échouent, 1 erreur**. Détail et analyse des échecs dans la Partie 3 ci-dessous.
 
-* user@tika.apache.org - About using Tika
-* dev@tika.apache.org - About developing Tika
+---
 
-Subscribe by sending a message to `{list}-subscribe@tika.apache.org`.
+## Partie 2 — Analyse de mutation (pitest) et tests manuels
 
-Issue Tracker
-=============
+### Configuration
 
-https://issues.apache.org/jira/browse/TIKA
+Le plugin `pitest-maven` (1.17.0) a été ajouté au `pom.xml` de
+`tika-parser-ocr-module`, avec `pitest-junit5-plugin` (1.2.1) pour la
+compatibilité JUnit 5 (les versions transitives de `junit-platform-engine` /
+`junit-platform-launcher` apportées par ce plugin ont dû être exclues pour
+éviter un conflit avec la version utilisée par le projet).
 
-Security
-========
+```bash
+cd tika-parsers/tika-parsers-standard/tika-parsers-standard-modules/tika-parser-ocr-module
+mvn org.pitest:pitest-maven:mutationCoverage
+```
 
-See [SECURITY.md](SECURITY.md) and https://tika.apache.org/security.html
+Rapport HTML généré dans `target/pit-reports/index.html`.
+
+### Score de mutation avec les tests originaux
+
+| Métrique | Valeur |
+|---|---|
+| Mutants générés | 70 |
+| Mutants tués | 34 (**49%**) |
+| Mutants non couverts (aucun test ne passe sur ce code) | 25 |
+| Force des tests (tués / couverts) | 76% |
+| Couverture de lignes (classes mutées) | 72% |
+
+Détail par mutateur (avant) :
+
+| Mutateur | Générés | Tués | % |
+|---|---|---|---|
+| PrimitiveReturnsMutator | 6 | 6 | 100% |
+| MathMutator | 1 | 1 | 100% |
+| EmptyObjectReturnValsMutator | 9 | 4 | 44% |
+| NegateConditionalsMutator | 33 | 19 | 58% |
+| ConditionalsBoundaryMutator | 3 | 1 | 33% |
+| VoidMethodCallMutator | 5 | 1 | 20% |
+| BooleanTrueReturnValsMutator | 6 | 1 | 17% |
+| BooleanFalseReturnValsMutator | 6 | 1 | 17% |
+| NullReturnValsMutator | 1 | 0 | 0% |
+
+Ce résultat démontre concrètement ce que la littérature du cours souligne
+(cf. lecture Google "Code Coverage Best Practices", semaine 4) : une
+couverture de lignes de 72% ne garantit absolument pas un score de mutation
+équivalent (49% ici) — plusieurs lignes exécutées par les tests n'avaient
+pas d'assertion assez précise pour détecter une erreur injectée.
+
+### Score de mutation avec les tests générés par ChatUniTest (avant tests manuels)
+
+Sur les 13 fichiers générés par ChatUniTest (Partie 1), 7 sont entièrement verts (`getColorspace`, `getDepth`, `getPageSeparator`, `isSkipOcr`, `setMaxFileSizeToOcr`, `setOtherTesseractConfig`, `setPageSeparator` — 25 tests). Les 6 autres contiennent au moins un test qui échoue (oracles incorrects, détaillés en Partie 3) ; pitest exige une suite entièrement verte ("Mutation testing requires a green suite"), donc ils sont exclus de cette mesure précise.
+
+En ajoutant ces 7 fichiers verts aux tests originaux (sans les tests manuels de la section suivante) :
+
+| Métrique | Tests originaux seuls | + tests générés (verts) |
+|---|---|---|
+| Mutants tués | 34 / 70 (49%) | **40 / 70 (57%)** |
+| Couverture de lignes | 72% | 71% |
+
+Les tests générés tuent 6 mutants supplémentaires, tous sur des méthodes qu'ils ciblent spécifiquement :
+- `setOtherTesseractConfig` : 4 mutants (`NegateConditionalsMutator` ×2, `EmptyObjectReturnValsMutator`, `VoidMethodCallMutator`) — les tests `testSetOtherTesseractConfig_InvalidKey/_MultipleEntries/_NullMap` exercent la boucle `for (Map.Entry...)` et sa condition de garde `if (otherTesseractConfig != null)`, jamais testée directement avant.
+- `getColorspace` : 2 mutants (`EmptyObjectReturnValsMutator`, `NegateConditionalsMutator`) — `testGetColorspaceWithNull`/`WithSet` relisent la valeur après construction, jamais vérifié avant.
+- `isSkipOcr` et `setMaxFileSizeToOcr` : 1 mutant chacun (retours booléen/primitif), déjà couverts partiellement mais désormais tués avec certitude par la relecture explicite du getter.
+
+Il reste **30 mutants non détectés** (20 sans aucune couverture, 10 couverts mais survivants) après les tests générés seuls — ChatUniTest ne détecte donc pas tous les mutants, ce qui motive les tests manuels ci-dessous.
+
+### Tests manuels ajoutés
+
+13 tests ont été ajoutés dans `TesseractOCRConfigTest.java` pour cibler
+précisément les mutants survivants ou non couverts identifiés par pitest.
+Chaque test est documenté dans le code (intention, motivation des données de
+test, explication de l'oracle) ; résumé ci-dessous :
+
+| Test | Intention | Données choisies | Oracle |
+|---|---|---|---|
+| `testValidateDensityBoundaries` | Tuer les mutants de frontière sur `density < 150 \|\| density > 1200` | 150, 1200 (limites valides), 149, 1201 (juste hors limites) | Les limites sont acceptées, les valeurs juste hors limites lèvent `IllegalArgumentException` |
+| `testColorspaceNullThrows` | Tuer la négation du contrôle de nullité de `setColorspace` | `null` | `IllegalArgumentException` attendue |
+| `testOutputTypeStringRoundTrip` | Vérifier le résultat réel de `setOutputType("txt"/"hocr")`, jamais vérifié avant | `"txt"`, `"hocr"` | `getOutputType()` reflète `TXT`/`HOCR` |
+| `testEnableImagePreprocessingRoundTrip` | Getter booléen jamais vérifié après le setter | `false` (défaut), `true` | Le getter reflète la valeur passée |
+| `testPreloadLangsRoundTrip` | Idem pour `isPreloadLangs` | `false`, `true` | Idem |
+| `testTesseractPathRoundTrip` | `getTesseractPath` jamais vérifié avec un chemin valide | chemin sans séparateur final | Chemin normalisé avec séparateur final ajouté |
+| `testImageMagickPathRoundTrip` | Idem pour `imageMagickPath` | idem | idem |
+| `testTessdataPathRoundTrip` | Idem pour `tessdataPath` | idem | idem |
+| `testSetOtherTesseractConfigMap` | `setOtherTesseractConfig(Map)` jamais appelé directement | Map à une entrée valide | `getOtherTesseractConfig()` contient l'entrée |
+| `testInlineContentRoundTrip` | Getter/setter jamais exercés | `false`, `true` | Le getter reflète la valeur |
+| `testPageSeparatorRoundTrip` | Valeur vide (no-op), séparateur valide, séparateur invalide jamais testés | `""`, `"end-of-page"`, `"<script>"` | Vide → inchangé ; valide → appliqué ; invalide → exception |
+| `testPreserveInterwordSpacingRoundTrip` | Getter/setter jamais exercés | `false`, `true` | Le getter reflète la valeur |
+| `testSkipOcrRoundTrip` | Getter/setter jamais exercés | `false`, `true` | Le getter reflète la valeur |
+| `testRuntimeConfigRejectsPathChanges` | `RuntimeConfig` était à 0% de couverture ; documente son comportement métier (interdiction de modifier les chemins à l'exécution) | valeur non vide pour chaque chemin | `TikaConfigException` attendue |
+| `testRuntimeConfigAllowsBlankPaths` | Vérifie la branche `StringUtils.isBlank` de `RuntimeConfig` | `""`, `null` | Aucune exception |
+| `testRuntimeConfigRejectsTrustedPageSeparator` | Méthode jamais exercée | toute valeur | `IllegalArgumentException` attendue |
+
+### Score de mutation final
+
+Les tests manuels ci-dessus ont été écrits et validés contre les tests originaux (49% → 100%), indépendamment des tests générés (qui, seuls, atteignent 57% — voir ci-dessus).
+
+| Métrique | Avant | Après |
+|---|---|---|
+| Mutants tués | 34 / 70 (49%) | **70 / 70 (100%)** |
+| Mutants non couverts | 25 | **0** |
+| Force des tests | 76% | **100%** |
+| Couverture de lignes | 72% | 96% |
+
+Tous les mutants survivants et non couverts identifiés initialement ont été
+éliminés par les 13 tests manuels ci-dessus — aucun mutant ne survit sur
+`TesseractOCRConfig` ni sur `TesseractOCRConfig.RuntimeConfig`.
+
+### Exécution
+
+Vérifié localement (deux exécutions consécutives, résultats identiques) et
+en intégration continue : [![build](https://github.com/chucky5264/tache2-guy-daher/actions/workflows/build.yml/badge.svg)](https://github.com/chucky5264/tache2-guy-daher/actions/workflows/build.yml)
+
+---
+
+## Partie 3 — Comparaison IA vs tests manuels
+
+### Les deux approches ciblent des méthodes différentes
+
+Le filtre par défaut de ChatUniTest (voir Partie 1) exclut les accesseurs, ce qui fait que les deux suites sont presque entièrement **complémentaires plutôt que redondantes** : nos 13 tests manuels de la Partie 2 couvrent des getters/setters/booléens (`isEnableImagePreprocessing`, `setColorspace`, bornes de `setDensity`, `RuntimeConfig`, etc.) — exactement le type de méthode que ChatUniTest écarte d'emblée. ChatUniTest, lui, n'a tenté que les 2 méthodes qui ne sont pas de simples accesseurs.
+
+### Qualité des oracles sur le seul test IA qui compile et s'exécute
+
+Le seul test généré utilisable est `TesseractOCRConfig_addOtherTesseractConfig_41_1_Test` (6 méthodes de test, 3 réussissent, 3 échouent à l'exécution — vérifié avec `mvn test -Dtest=...`) :
+
+| Test généré par l'IA | Oracle | Verdict |
+|---|---|---|
+| `testAddOtherTesseractConfigWithValidKeyAndValue` | `addOtherTesseractConfig("key1","value1")` puis vérifie que `getOtherTesseractConfig()` contient l'entrée | **Correct et pertinent** — exerce le chemin nominal |
+| `testAddOtherTesseractConfigWithInvalidKey` | clé `null` → attend `IllegalArgumentException` avec le message exact `"key must not be null"` | **Correct et précis** — le message correspond mot pour mot au code source (`TesseractOCRConfig.java:524`) |
+| `testAddOtherTesseractConfigWithInvalidValue` | valeur `null` → attend `IllegalArgumentException("value must not be null")` | **Correct et précis**, même constat |
+| `testAddOtherTesseractConfigWithInvalidKeyPattern` | appelle `addOtherTesseractConfig("key1", value)` — **la même chaîne valide que le test 1** — et attend quand même une `IllegalArgumentException` | **Faux** — "key1" ne contient aucun caractère interdit par `ALLOWABLE_OTHER_PARAMS_PATTERN`, la méthode ne lève rien ; le test échoue. Le nom du test promet une clé invalide, les données ne le sont pas. |
+| `testAddOtherTesseractConfigWithInvalidValuePattern` | même défaut, sur la valeur cette fois | **Faux**, même raison |
+| `testAddOtherTesseractConfigWithExistingKey` | ajoute `key1`→`value1`, ré-ajoute `key1`→`value2`, attend `IllegalArgumentException("Key already exists: key1")` | **Faux — comportement inventé** : `addOtherTesseractConfig` n'a aucune vérification de clé dupliquée ; un second appel écrase silencieusement la valeur (`otherTesseractConfig.put(...)`). L'oracle décrit un comportement qui n'existe pas dans le code. |
+
+La moitié des oracles générés sont donc **corrects et même assez précis** (messages d'exception vérifiés au caractère près) : à chaque fois que le test exerce un chemin que le modèle "comprend" bien (contrôle de nullité explicite, très visible dans du code générique de validation), l'oracle est bon. Mais dès que le nom du test implique une invariant plus subtile (motif regex, unicité de clé), le modèle invente une donnée de test qui ne correspond pas à l'intention annoncée par le nom de la méthode de test, et un comportement attendu qui n'existe pas dans le code réel — contrairement à nos tests manuels (Partie 2), construits directement à partir des mutants pitest survivants et de la lecture du code source (`ALLOWABLE_PAGE_SEPARATORS_PATTERN`, bornes `150`/`1200`, etc.), donc nécessairement ancrés dans le comportement réel.
+
+### Deuxième jeu de données : 12 méthodes supplémentaires (modèle `codeqwen:v1.5-chat`)
+
+Vérifié par exécution réelle (`mvn test`), pas par lecture :
+
+| Méthode | Tests | Résultat | Cause des échecs |
+|---|---|---|---|
+| `getColorspace`, `getDepth`, `getPageSeparator`, `isSkipOcr`, `setPageSeparator`, `setMaxFileSizeToOcr`, `setOtherTesseractConfig` | 25 | **25/25 passent** | — |
+| `isPreserveInterwordSpacing` | 3 | 2/3 | Le test lui-même est buggé : son commentaire dit "default should be false" mais il appelle `assertTrue` au lieu de `assertFalse`. |
+| `setColorspace` | 12 | 6/12 | Le modèle suppose que chiffres/majuscules/tiret/underscore sont invalides, alors que le vrai pattern `(?i)^[-_A-Z0-9]+$` les accepte tous. |
+| `setFilter` | 10 | 4/10 | Même erreur que ci-dessus pour `setFilter(null)` (le code source a un vrai bug : `filter.equals(null)` lève `NullPointerException`, pas `IllegalArgumentException` — le modèle assume le comportement conventionnel) ; et le modèle suppose à tort que le setter normalise la casse (ex. `"TriaNgLE"` → `"triangle"`), alors que la valeur est stockée telle quelle. |
+| `setTrustedPageSeparator` | 9 | 5/9 | 3 échecs : le modèle croit que cette méthode valide son entrée alors que c'est justement la variante *sans* validation (son javadoc le dit explicitement). 1 erreur : bug Java dans le test généré lui-même — `invoke(config, null)` est interprété par la réflexion comme "aucun argument" plutôt que "un argument nul". |
+| `addOtherTesseractConfig` (variante 41_0, modèle différent de la nôtre) | 5 | 3/5 | Même erreur que `setColorspace` : `"invalid-key"` contient un tiret, autorisé par `ALLOWABLE_OTHER_PARAMS_PATTERN`, donc pas rejeté — contrairement à l'hypothèse du test. |
+
+Le même biais revient sur 3 méthodes indépendantes (`setColorspace`, `setFilter`, `addOtherTesseractConfig`) : le modèle suppose qu'une chaîne "qui a l'air bizarre" (tiret, chiffre, casse mixte) doit être rejetée, sans jamais vérifier le pattern regex réel — et à l'inverse pour `setTrustedPageSeparator`, il suppose une validation qui n'existe pas. C'est le même défaut que celui identifié plus haut sur `addOtherTesseractConfig_41_1` (Partie 3), à plus grande échelle : l'oracle est plausible, pas vérifié contre le code.
+
+### En résumé
+
+- **Couverture** : avec le modèle `code-llama`/1,5B, l'IA ne touche pas aux accesseurs (filtrés par conception) ; avec `codeqwen:v1.5-chat`/3B, elle les couvre aussi. Le manuel (Partie 2) ciblait les mêmes accesseurs, donc les deux runs IA se recoupent partiellement avec le travail manuel une fois le modèle plus gros utilisé.
+- **Fiabilité d'exécution, cumulée sur les 13 fichiers générés (les deux modèles)** : 70 tests exécutés, **48 passent (69%)**, 21 échouent, 1 erreur.
+- **Pertinence des oracles** : bonne sur les cas triviaux (contrôle de nullité, lecture d'un accesseur), mauvaise dès qu'il faut vérifier une règle précise (pattern regex, normalisation de casse, présence/absence de validation) — le même biais (« ça a l'air invalide donc ça doit lever une exception ») revient sur `setColorspace`, `setFilter`, `addOtherTesseractConfig` et `setTrustedPageSeparator`, sans jamais être vérifié contre le code réel.
+- **Bugs propres aux tests générés, indépendants de la logique métier** : une assertion inversée (`isPreserveInterwordSpacing`) et un bug d'API Java (appel de réflexion avec un argument `null` mal formé).
+- **Mutants** : les mutants que nos tests manuels de la Partie 2 ont tués (cf. tableau mutation) portent tous sur des méthodes aussi couvertes par le deuxième run IA (`codeqwen`) ; il y a donc un vrai recoupement possible pour une analyse de mutation combinée, non réalisée ici par manque de temps.
+
+---
+
+## Déclaration d'utilisation de l'IA
+
+Conformément à la politique de l'Université de Montréal sur l'IA générative
+([Citer, signaler, déclarer et documenter](https://boite-outils.bib.umontreal.ca/c.php?g=743753&p=5377614)),
+nous déclarons avoir utilisé l'assistant Claude (Claude Code, Anthropic)
+comme outil d'appui, selon les modalités suivantes.
+
+### Partie 2 — Analyse de mutation et tests manuels
+
+Claude a été consulté pour :
+- diagnostiquer le conflit de dépendances JUnit lors de l'intégration de pitest ;
+- suggérer des ébauches de tests pour certains mutants, que nous avons
+  ensuite adaptées et complétées ;
+- reformuler certains passages du README.
+- le dépouillement des journaux et des fichiers `chatunitest-info`/`history`,
+  afin de dresser la liste des méthodes testées et des tests en échec ;
+  - le débogage technique de l'exécution de ChatUniTest avec un modèle Ollama
+  local (dépendance Mockito manquante, décompilation de `chatunitest-core`
+  pour comprendre le filtrage des méthodes dans `Counter.filter`) ;
+
+
+Tout contenu produit avec l'aide de Claude a été relu et vérifié par
+l'équipe avant d'être intégré.
